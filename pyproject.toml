@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llmtrim"
+version = "0.1.0"
+description = "Token-aware input compression framework for LLM prompts: rule-based cleaning, statistical pruning, and optional zh->en translation."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "LLMTrim contributors" }]
+keywords = ["llm", "prompt", "compression", "tokens", "pruning"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Linguistic",
+]
+dependencies = [
+    "jieba>=0.42",
+]
+
+[project.optional-dependencies]
+tiktoken = ["tiktoken>=0.5"]
+translate = ["argostranslate>=1.9"]
+openai = ["openai>=1.0"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+llmtrim = "llmtrim.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/example/llmtrim"
+
+[tool.setuptools.packages.find]
+include = ["llmtrim*"]
+
+[tool.setuptools.package-data]
+llmtrim = ["data/*.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
