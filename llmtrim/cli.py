@@ -43,6 +43,8 @@ def _build_parser() -> argparse.ArgumentParser:
     add_common(p_trim)
     p_trim.add_argument("--translate", action="store_true",
                         help="enable zh->en translation stage")
+    p_trim.add_argument("--force-translate", action="store_true",
+                        help="accept valid translations even when they use more tokens")
     p_trim.add_argument("--translator", default="argos",
                         choices=["argos", "openai"],
                         help="translator engine for --translate")
@@ -54,6 +56,8 @@ def _build_parser() -> argparse.ArgumentParser:
     add_common(p_report)
     p_report.add_argument("--translate", action="store_true",
                           help="include the translate stage in the analysis")
+    p_report.add_argument("--force-translate", action="store_true",
+                          help="accept valid translations even when they use more tokens")
     p_report.add_argument("--translator", default="argos",
                           choices=["argos", "openai"])
 
@@ -81,6 +85,7 @@ def _write_output(args: argparse.Namespace, text: str) -> None:
 
 
 def _config_from_args(args: argparse.Namespace, translate: bool) -> TrimConfig:
+    force_translate = getattr(args, "force_translate", False)
     return TrimConfig(
         target_ratio=args.target_ratio,
         aggressiveness=args.aggressiveness,
@@ -88,7 +93,8 @@ def _config_from_args(args: argparse.Namespace, translate: bool) -> TrimConfig:
         structure=not args.no_structure,
         prune=not args.no_prune,
         counter=args.counter,
-        translate_enabled=translate,
+        translate_enabled=translate or force_translate,
+        force_translate=force_translate,
         translator=args.translator,
     )
 

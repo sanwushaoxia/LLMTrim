@@ -19,8 +19,9 @@ class TrimConfig:
     Parameters
     ----------
     target_ratio:
-        Desired ``final_tokens / original_tokens``. The pipeline stops
-        pruning once the budget is met. ``1.0`` disables pruning.
+        Desired ``final_tokens / original_tokens``. The prune budget is
+        calculated from the original input token count, even when earlier
+        stages have already reduced the text. ``1.0`` disables pruning.
     aggressiveness:
         0.0-1.0. Higher values delete content words more aggressively
         (lower score floor) and allow shorter fragments to remain.
@@ -30,6 +31,9 @@ class TrimConfig:
         Per-stage switches (kept as explicit booleans for convenience).
     translate_enabled:
         Run the zh->en translation stage before pruning. Default off.
+    force_translate:
+        Accept a validated translation even when it is not cheaper in tokens.
+        Default off; implies no stage by itself when used through Python.
     translator:
         Registered translator name: ``"argos"`` (default) or ``"openai"``.
     translator_kwargs:
@@ -52,6 +56,7 @@ class TrimConfig:
     structure: bool = True
     prune: bool = True
     translate_enabled: bool = False
+    force_translate: bool = False
 
     enabled_stages: Optional[Sequence[str]] = None
 
@@ -80,6 +85,8 @@ class TrimConfig:
     def stage_enabled(self, name: str) -> bool:
         if self.enabled_stages is not None:
             return name in self.enabled_stages
+        if name == "translate":
+            return self.translate_enabled
         return bool(getattr(self, name, True))
 
     def compiled_protected_patterns(self) -> Sequence[Pattern[str]]:

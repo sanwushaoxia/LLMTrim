@@ -79,6 +79,62 @@ def test_translation_stage_via_fake():
     assert r.final_tokens <= r.original_tokens
 
 
+def test_force_translation_accepts_larger_result():
+    from llmtrim.translate import register_translator
+
+    class Inflating:
+        name = "inflating-pipeline"
+
+        def translate(self, text, source, target):
+            return "English translation" + " padding" * 20
+
+    register_translator(Inflating)
+    text = "这是一段需要强制翻译的中文内容"
+    r = trim(text, cfg(
+        translate_enabled=True,
+        force_translate=True,
+        translator="inflating-pipeline",
+        target_ratio=1.0,
+        prune=False,
+    ))
+    assert "English translation" in r.text
+    assert r.translation["accepted"] == 1
+
+
+    r = trim(MIXED, cfg())
+    translate_stage = next(stage for stage in r.stages if stage.name == "translate")
+    assert translate_stage.applied is False
+
+
+def test_prune_budget_uses_original_tokens():
+    text = "填充内容 " * 30 + "关键事实必须保留"
+    r = trim(text, cfg(target_ratio=0.5, clean=False, structure=False))
+    prune_stage = next(stage for stage in r.stages if stage.name == "prune")
+    assert prune_stage.metadata["budget_basis"] == "original_tokens"
+    assert prune_stage.metadata["budget"] == max(1, int(0.5 * r.original_tokens))
+
+
+def test_dry_run_preserves_text_and_reports_audit_fields():
+    r = analyze(MIXED, cfg(target_ratio=0.5))
+    assert r.text == MIXED
+    assert r.counter_name == "heuristic"
+    assert set(r.translation) == {"attempted", "accepted", "rejected", "failures"}
+    assert all(stage.elapsed_ms >= 0 for stage in r.stages)
+    json.dumps(r.as_dict())
+
+
+def test_protected_span_survives_clean_and_structure():
+    custom = "KEEP_THIS  //  exact"
+    text = "说明   内容\n" + custom + "\n链接 https://example.com/a/very/long/path/with/more/segments"
+    r = trim(text, cfg(
+        target_ratio=0.3,
+        extra_protected_patterns=[r"KEEP_THIS[^\n]*"],
+    ))
+    assert custom in r.text
+    assert "https://example.com/" in r.text
+    assert "very/long/path" not in r.text
+
+
 def test_config_validation():
     with pytest.raises(ValueError):
         TrimConfig(target_ratio=1.5)

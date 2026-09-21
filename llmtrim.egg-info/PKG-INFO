@@ -1,3 +1,32 @@
+Metadata-Version: 2.4
+Name: llmtrim
+Version: 0.1.0
+Summary: Token-aware input compression framework for LLM prompts: rule-based cleaning, statistical pruning, and optional zh->en translation.
+Author: LLMTrim contributors
+License: MIT
+Keywords: llm,prompt,compression,tokens,pruning
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Text Processing :: Linguistic
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: jieba>=0.42
+Provides-Extra: tiktoken
+Requires-Dist: tiktoken>=0.5; extra == "tiktoken"
+Provides-Extra: translate
+Requires-Dist: argostranslate>=1.9; extra == "translate"
+Provides-Extra: openai
+Requires-Dist: openai>=1.0; extra == "openai"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+
 # LLMTrim
 
 English | [简体中文](README.zh-CN.md)
@@ -90,13 +119,6 @@ llmtrim report input.txt                    # analysis only, text untouched
 llmtrim setup-translate                     # download argos zh->en model
 ```
 
-Use `tiktoken` for exact `o200k_base` token counts (after installing
-`.[tiktoken]`):
-
-```bash
-llmtrim trim input.txt -r 0.5 --counter tiktoken --report
-```
-
 ## The pipeline
 
 Stages run in order; every stage's token delta is recorded in
@@ -136,21 +158,8 @@ Translate-then-compress on a file (translation runs before pruning; the final
 budget is still defined as `target_ratio` of the original input tokens):
 
 ```bash
-llmtrim trim prompt_zh.txt --translate --counter tiktoken \
-  -r 0.5 --report -o prompt_en.txt
+llmtrim trim prompt_zh.txt --translate -r 0.5 --report -o prompt_en.txt
 ```
-
-Force a validated English translation even when it costs more tokens:
-
-```bash
-llmtrim trim prompt_zh.txt --force-translate --counter tiktoken \
-  -r 0.5 --report -o prompt_en.txt
-```
-
-Normal `--translate` accepts a translation only when it is cheaper under the
-selected counter. `--force-translate` bypasses only that cost check; empty,
-malformed, failed, or protected-content-breaking translations are still
-rejected. Force mode may increase token usage and alter wording.
 
 Or pipe from stdin:
 
@@ -170,11 +179,7 @@ Python API equivalent:
 ```python
 from llmtrim import trim, TrimConfig
 
-result = trim(text, TrimConfig(
-    translate_enabled=True,
-    force_translate=True,
-    target_ratio=0.5,
-))
+result = trim(text, TrimConfig(translate_enabled=True, target_ratio=0.5))
 print(result.summary())
 ```
 
@@ -188,12 +193,11 @@ TrimConfig(translate_enabled=True, translator="openai",
 
 Safety rules baked in:
 
-- **Token-aware acceptance** — normal translation is adopted only when it
-  counts *fewer* tokens with the same counter. `--force-translate` can bypass
-  this cost check, but it may increase token usage or change wording.
+- **Token-aware acceptance** — a block is adopted only if the translation
+  counts *fewer* tokens with the same counter. The stage can never grow
+  the input.
 - Code fences, inline code and URLs never reach the translator.
-- Empty, malformed, failed, or protected-content-breaking translations are
-  always rejected.
+- Any translator failure keeps the original text (best-effort by design).
 - Custom engines: subclass, give it a `name`, call
   `llmtrim.translate.register_translator(MyCls)`.
 
@@ -205,7 +209,6 @@ Safety rules baked in:
 | `aggressiveness` | `0.5` | 0–1; how deep into the score ranking pruning may reach |
 | `clean` / `structure` / `prune` | `True` | per-stage switches |
 | `translate_enabled` | `False` | run the zh->en stage |
-| `force_translate` | `False` | accept validated translations even when they use more tokens |
 | `translator` | `"argos"` | engine name (`argos`, `openai`, or registered) |
 | `translator_kwargs` | `{}` | engine options (base_url, api_key, model) |
 | `protected_patterns` | code fences, inline code | extra regexes are appended via `extra_protected_patterns` |
@@ -237,8 +240,8 @@ pytest
 
 ## Scope & guarantees
 
-- Deletion-only compression: wording is never rewritten (translation is the
-  single opt-in exception; force mode may accept a larger translation).
+- Deletion-only compression: wording is never rewritten (translation is
+  the single opt-in exception, and it is accepted only when smaller).
 - Deterministic: same input + config ⇒ same output.
 - The clean/structure stages revert automatically if they would ever grow
   the text.

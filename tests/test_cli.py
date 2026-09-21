@@ -41,6 +41,8 @@ def test_json_metadata():
     assert proc.returncode == 0
     data = json.loads(proc.stderr)
     assert "original_tokens" in data and "stages" in data
+    assert data["counter_name"] == "heuristic"
+    assert all("elapsed_ms" in stage for stage in data["stages"])
 
 
 def test_trim_file(tmp_path):
@@ -50,6 +52,14 @@ def test_trim_file(tmp_path):
     proc = run_cli(["trim", str(f), "-o", str(out), "--counter", "heuristic"])
     assert proc.returncode == 0
     assert out.exists()
+
+
+def test_force_translate_flag_enables_translation():
+    proc = run_cli(["report", "--force-translate", "--counter", "heuristic"],
+                   stdin="这是一段需要翻译的中文内容")
+    assert proc.returncode == 0
+    assert "[translate" in proc.stdout
+    assert "translator=argos" in proc.stdout or "no CJK content" not in proc.stdout
 
 
 def test_no_translate_by_default_no_error():

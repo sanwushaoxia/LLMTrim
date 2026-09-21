@@ -30,6 +30,7 @@ from .stopwords import stopwords_for
 
 _PLACEHOLDER_FMT = "\x02{}\x02"
 _PLACEHOLDER_RE = re.compile("\x02(\\d+)\x02")
+_URL_RE = re.compile(r"https?://[^\s<>\"')\]]+", re.IGNORECASE)
 
 _WORD_OFF_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_\-./%]*")
 
@@ -40,7 +41,10 @@ def prune(text: str, config: TrimConfig, counter: TokenCounter,
     if counter.count(text) <= budget_tokens:
         return text
 
-    spans = _find_protected_spans(text, config.compiled_protected_patterns())
+    spans = _find_protected_spans(
+        text,
+        list(config.compiled_protected_patterns()) + [_URL_RE],
+    )
     masked, protected_parts = _mask(text, spans)
     protected_tokens = sum(counter.count(p) for p in protected_parts)
     free_budget = budget_tokens - protected_tokens

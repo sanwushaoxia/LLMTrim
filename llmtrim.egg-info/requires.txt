@@ -1,0 +1,13 @@
+jieba>=0.42
+
+[dev]
+pytest>=7.0
+
+[openai]
+openai>=1.0
+
+[tiktoken]
+tiktoken>=0.5
+
+[translate]
+argostranslate>=1.9

@@ -60,6 +60,19 @@ def test_rejected_when_larger():
     assert out == zh  # kept original
 
 
+def test_force_accepts_larger_translation():
+    class InflatingTranslator(FakeTranslator):
+        name = "inflating-force"
+
+        def translate(self, text, source, target):
+            return FakeTranslator.translate(self, text, source, target) + " padding " * 30
+
+    text = "这是一段中文"
+    out = translate_stage(text, InflatingTranslator(), COUNTER, force=True)
+    assert out.startswith("terse english gloss")
+    assert COUNTER.count(out) > COUNTER.count(text)
+
+
 def test_never_grows_the_input():
     text = "中文行\n英文 line stays\n另一中文行"
     out = translate_stage(text, FakeTranslator(), COUNTER)
@@ -103,6 +116,64 @@ def test_url_masked_from_translator():
     register_translator(RecordingTranslator)
     translate_stage("访问 https://example.com/a?b=c 页面获取信息", RecordingTranslator(), COUNTER)
     assert "example.com" not in seen["text"] or seen["text"].count("@@T") > 0
+
+
+def test_url_placeholder_drop_keeps_original():
+    class DroppingTranslator(FakeTranslator):
+        name = "dropping"
+
+        def translate(self, text, source, target):
+            return "terse english gloss"
+
+    text = "访问 https://example.com/a/very/long/path 页面获取信息"
+    out = translate_stage(text, DroppingTranslator(), COUNTER)
+    assert out == text
+
+
+def test_url_placeholder_drop_keeps_original_even_when_forced():
+    class DroppingTranslator(FakeTranslator):
+        name = "dropping-force"
+
+        def translate(self, text, source, target):
+            return "terse english gloss"
+
+    text = "访问 https://example.com/a/very/long/path 页面获取信息"
+    out = translate_stage(text, DroppingTranslator(), COUNTER, force=True)
+    assert out == text
+
+
+def test_translation_stats_record_rejection():
+    from llmtrim.translate import TranslationStats
+
+    stats = TranslationStats()
+    text = "这是一段中文内容"
+    out = translate_stage(text, ExplodingTranslator(), COUNTER, stats=stats)
+    assert out == text
+    assert stats.attempted == 1
+    assert stats.rejected == 1
+    assert stats.failures == 1
+
+
+def test_malformed_line_structure_keeps_original():
+    class LineDroppingTranslator(FakeTranslator):
+        name = "line-dropping"
+
+        def translate(self, text, source, target):
+            return "terse english gloss\nextra line"
+
+    text = "这是一段中文内容"
+    assert translate_stage(text, LineDroppingTranslator(), COUNTER) == text
+
+
+def test_malformed_line_structure_keeps_original_even_when_forced():
+    class LineDroppingTranslator(FakeTranslator):
+        name = "line-dropping-force"
+
+        def translate(self, text, source, target):
+            return "terse english gloss\nextra line"
+
+    text = "这是一段中文内容"
+    assert translate_stage(text, LineDroppingTranslator(), COUNTER, force=True) == text
 
 
 def test_get_translator_unknown_raises():

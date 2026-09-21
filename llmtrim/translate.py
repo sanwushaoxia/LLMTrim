@@ -15,6 +15,7 @@ Design:
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Protocol
 
 from .counters import TokenCounter, cjk_char_count
@@ -134,8 +135,10 @@ class _Placeholder:
 
 def translate_stage(text: str, translator: Translator, counter: TokenCounter,
                     target_lang: str = "en",
-                    protected_patterns: tuple = ()) -> str:
-    """Translate CJK blocks to ``target_lang`` when it saves tokens."""
+                    protected_patterns: tuple = (),
+                    stats: Optional["TranslationStats"] = None,
+                    force: bool = False) -> str:
+    """Translate CJK blocks, optionally accepting larger candidates."""
     if not cjk_char_count(text):
         return text
 
@@ -144,36 +147,50 @@ def translate_stage(text: str, translator: Translator, counter: TokenCounter,
     for block in blocks:
         out_blocks.append(
             _translate_block(block, translator, counter, target_lang,
-                             protected_patterns)
+                             protected_patterns, stats, force)
         )
     return "\n\n".join(out_blocks)
 
 
-_NOTRANS = "\x00"  # line-prefix marker: never translate this line
+@dataclass
+class TranslationStats:
+    """Counters describing translation candidates and their outcomes."""
+
+    attempted: int = 0
+    accepted: int = 0
+    rejected: int = 0
+    failures: int = 0
 
 
 def _translate_block(block: str, translator: Translator, counter: TokenCounter,
-                     target_lang: str, protected_patterns: tuple) -> str:
+                     target_lang: str, protected_patterns: tuple,
+                     stats: Optional["TranslationStats"] = None,
+                     force: bool = False) -> str:
     if cjk_char_count(block) < _ZH_MIN_CJK:
         return block
 
-    # line-level protection: fenced code and protected-pattern lines stay put
+    # Decide per line whether it must stay untouched: fence markers, fence
+    # interiors, protected-pattern lines, and lines without CJK.
     lines = block.split("\n")
+    keep = [False] * len(lines)
     in_fence = False
     for i, line in enumerate(lines):
         if line.strip().startswith("```"):
             in_fence = not in_fence
-            lines[i] = _NOTRANS + line
+            keep[i] = True
             continue
         if in_fence or any(p.search(line) for p in protected_patterns):
-            lines[i] = _NOTRANS + line
+            keep[i] = True
             continue
         if not cjk_char_count(line):
-            lines[i] = _NOTRANS + line
+            keep[i] = True
 
-    translatable = [i for i, l in enumerate(lines) if not l.startswith(_NOTRANS)]
+    translatable = [i for i in range(len(lines)) if not keep[i]]
     if not translatable:
         return block
+
+    if stats is not None:
+        stats.attempted += 1
 
     # mask protected spans (URLs) inside translatable lines
     ph = _Placeholder()
@@ -182,14 +199,27 @@ def _translate_block(block: str, translator: Translator, counter: TokenCounter,
     try:
         translated = translator.translate(joined, "zh", target_lang)
     except Exception:
+        if stats is not None:
+            stats.failures += 1
+            stats.rejected += 1
         return block  # translation is best-effort; never fail the pipeline
 
     if not translated or not translated.strip():
+        if stats is not None:
+            stats.rejected += 1
+        return block
+
+    # Reject output that drops a protected URL placeholder.
+    if any(key not in translated for key in ph._store):
+        if stats is not None:
+            stats.rejected += 1
         return block
 
     translated = ph.unmask(translated)
     new_lines = translated.split("\n")
     if len(new_lines) != len(translatable):
+        if stats is not None:
+            stats.rejected += 1
         return block  # translator broke line structure; keep the original
 
     candidate_lines = list(lines)
@@ -197,9 +227,14 @@ def _translate_block(block: str, translator: Translator, counter: TokenCounter,
         candidate_lines[i] = new
     candidate = "\n".join(candidate_lines)
 
-    # token-aware acceptance: adopt only when strictly smaller
-    if counter.count(candidate) < counter.count(block):
+    # Token-aware acceptance is the default. Force mode bypasses only this
+    # size comparison; all output-integrity checks above still apply.
+    if force or counter.count(candidate) < counter.count(block):
+        if stats is not None:
+            stats.accepted += 1
         return candidate
+    if stats is not None:
+        stats.rejected += 1
     return block
 
 

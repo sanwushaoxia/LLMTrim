@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "llmtrim"
 version = "0.1.0"
 description = "Token-aware input compression framework for LLM prompts: rule-based cleaning, statistical pruning, and optional zh->en translation."
-readme = "README.md"
+readme = "README.md"  # 中文版见 README.zh-CN.md
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "LLMTrim contributors" }]
@@ -35,9 +35,6 @@ dev = ["pytest>=7.0"]
 
 [project.scripts]
 llmtrim = "llmtrim.cli:main"
-
-[project.urls]
-Homepage = "https://github.com/example/llmtrim"
 
 [tool.setuptools.packages.find]
 include = ["llmtrim*"]

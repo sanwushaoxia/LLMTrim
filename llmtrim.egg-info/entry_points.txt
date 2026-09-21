@@ -1,0 +1,2 @@
+[console_scripts]
+llmtrim = llmtrim.cli:main

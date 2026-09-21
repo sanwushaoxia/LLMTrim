@@ -1,13 +1,13 @@
 # Python bytecode caches
 __pycache__/
-*.py[cod]
-*$py.class
+# *.py[cod]
+# *$py.class
 
 # Packaging / build artifacts
-*.egg-info/
-build/
-dist/
-.eggs/
+# *.egg-info/
+# build/
+# dist/
+# .eggs/
 
 # Test / coverage caches
 .pytest_cache/
@@ -17,19 +17,19 @@ htmlcov/
 .tox/
 
 # Virtual environments
-.venv/
-venv/
-env/
+# .venv/
+# venv/
+# env/
 
 # Tooling caches
-.mypy_cache/
-.ruff_cache/
-.ipynb_checkpoints/
+# .mypy_cache/
+# .ruff_cache/
+# .ipynb_checkpoints/
 
 # Editors / OS
-.vscode/
-.idea/
-.DS_Store
+# .vscode/
+# .idea/
+# .DS_Store
 
 # Agent tooling state
-.zcode/
+# .zcode/

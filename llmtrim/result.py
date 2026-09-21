@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -14,6 +14,9 @@ class StageReport:
     tokens_after: int
     applied: bool = True
     note: str = ""
+    elapsed_ms: float = 0.0
+    reverted: bool = False
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def tokens_saved(self) -> int:
@@ -27,6 +30,9 @@ class StageReport:
             "tokens_saved": self.tokens_saved,
             "applied": self.applied,
             "note": self.note,
+            "elapsed_ms": self.elapsed_ms,
+            "reverted": self.reverted,
+            "metadata": self.metadata,
         }
 
 
@@ -54,6 +60,8 @@ class TrimResult:
     final_tokens: int
     stages: List[StageReport] = field(default_factory=list)
     translator_used: Optional[str] = None
+    counter_name: str = ""
+    translation: Dict[str, int] = field(default_factory=dict)
 
     @property
     def ratio(self) -> float:
@@ -73,9 +81,10 @@ class TrimResult:
         ]
         for s in self.stages:
             status = "ok" if s.applied else "skipped"
+            change = f"-{s.tokens_saved}" if s.tokens_saved >= 0 else f"+{-s.tokens_saved}"
             lines.append(
                 f"  [{s.name:<9}] {s.tokens_before:>6} -> {s.tokens_after:>6} "
-                f"(-{s.tokens_saved}) {status}"
+                f"({change}) {status}"
                 + (f" | {s.note}" if s.note else "")
             )
         return "\n".join(lines)
@@ -87,5 +96,7 @@ class TrimResult:
             "ratio": self.ratio,
             "tokens_saved": self.tokens_saved,
             "translator_used": self.translator_used,
+            "counter_name": self.counter_name,
+            "translation": self.translation,
             "stages": [s.as_dict() for s in self.stages],
         }
