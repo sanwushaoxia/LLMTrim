@@ -1,1 +1,1 @@
-problem driver. current HDMI connection outside screen available
+Lists reqId, it's manual, packs time, upload time, eventually, tell it's lot failure.
